@@ -9,25 +9,32 @@ function AzureLogin
         [bool] $RunPasswordPrompt = $false,
         [Parameter(Mandatory=$false)]
         [string] $SecurePasswordLocation,
-        [Parameter(Mandatory=$false)]
+        [Parameter(Mandatory=$true)]
         [string] $LoginName,
         [Parameter(Mandatory=$false)]
         [bool] $AzureForGov = $false,
         [Parameter(Mandatory=$false)]
         [bool] $ConnectToAzureAd = $false,
         [Parameter(Mandatory=$false)]
-        [bool] $UseWriteHost = $false
+        [bool] $UseWriteHost = $false,
+        [Parameter(Mandatory=$false)]
+        [bool] $CreatePath = $false
     )
 
     try 
     {
         $success = $false
+        if($SecurePasswordLocation.Equals(""))
+        {
+            if($UseWriteHost){write-host "Encrypted password file location not supplied.  Exiting..."}
+            return $false # could make success false
+        }
         if(!($SecurePasswordLocation -match '(\w)[.](\w)') )
         {
             if($UseWriteHost){write-host "Encrypted password file ends in a directory, this needs to end in a filename.  Exiting..."}
             return $false # could make success false
         }
-        $success = DetectPath -PathAndFilename $SecurePasswordLocation -CreatePath $true
+        $success = DetectPath -PathAndFilename $SecurePasswordLocation -CreatePath $CreatePath
         if(!($success))
         {
             #path doesn't exist or failed to create, exit
@@ -347,14 +354,15 @@ function PopulateVmList
 [string]    $SecurePasswordLocation =      ""           #Path and filename for the secure password file c:\Whatever\securePassword.txt
 [string]    $LogFileNameAndPath =          ""           #If $enabledLogFile is true, the script will write to a log file in this path.  Include FileName, example c:\whatever\file.log
 [bool]      $RunPasswordPrompt =           $false        #Uses Read-Host to prompt the user at the command prompt to enter password.  this will create the text file in $SecurePasswordLocation.
-[bool]      $AzureForGovernment =          $true       #set to $true if running cmdlets against Microsoft azure for government
+[bool]      $AzureForGovernment =          $false       #set to $true if running cmdlets against Microsoft azure for government
 [bool]      $EnableLogFile =               $false       #If enabled a log file will be written to $LogFileNameAndPath.
 [bool]      $ConnectToAzureAd =            $false       #This will connect using Connect-AzureAd instead of Connect-AzAccount
+[bool]      $DeletePwdFileOnExit =         $false        #Deletes the encrypted password file at the end of the script
 
 try 
 {
-    if($AzureForGovernment){$success = AzureLogin -RunPasswordPrompt $RunPasswordPrompt -SecurePasswordLocation $SecurePasswordLocation -LoginName $LoginName -AzureForGov $AzureForGovernment}
-    else {$success = AzureLogin -RunPasswordPrompt $RunPasswordPrompt -SecurePasswordLocation $SecurePasswordLocation -LoginName $LoginName -UseWriteHost $true}
+    if($AzureForGovernment){$success = AzureLogin -RunPasswordPrompt $RunPasswordPrompt -SecurePasswordLocation $SecurePasswordLocation -LoginName $LoginName -AzureForGov $AzureForGovernment -UseWriteHost $true -CreatePath $true}
+    else {$success = AzureLogin -RunPasswordPrompt $RunPasswordPrompt -SecurePasswordLocation $SecurePasswordLocation -LoginName $LoginName -UseWriteHost $true -CreatePath $true}
 
     if($success)
     {
@@ -416,4 +424,16 @@ catch
 {
     #Login Failed with Error
     $_.Exception.Message
+}
+if($DeletePwdFileOnExit)
+{
+    try {
+        if(Test-Path $SecurePasswordLocation)
+        {
+            Remove-Item -Path $SecurePasswordLocation
+        }
+    }
+    catch {
+        $_.Exception.Message
+    }
 }
